@@ -1,99 +1,133 @@
 from time import sleep
 import numpy
-import cv2
-import zwoasi
-import AsiModule
 from ModeControl import ModeControl
 from ModeControl import SystemMode
-import GuiderModule
 import threading
 import serial
 import random
 import struct
-import ModeControl_OLD
-import keyboard
-from getch import getch, pause
+from getch import getch
 import sys
-import queue
 import sqlite3
+import queue
+from smbus import SMBus
 
 def input_worker_thread():
     while True:
-        print("Input\n")
+        #print("Input\n")
         global stop_input_thread
         global command_in
         global sensorQueue
 
         # Enqueue sensor data
-        sensorQueue.put("Sensor Data 01")
-        #sensorQueue.put("S")
+        for i in range(1):
+            j = i % 3
+            i2cbus.write_byte_data(i2caddress_3, 0x00, j)
+            byte_list = i2cbus.read_i2c_block_data(i2caddress_3, 0x00, 32)
+            char_array = "".join(chr(byte) for byte in byte_list)
+            sensorQueue.put(char_array)
 
-        #serialPort.write(b'A')
-        #print(serialPort.read(94))
-        #bytesread = serialPort.readline()
-        #print(bytesread)
-        #elements = bytesread.decode().split(",")
-        #if ((len(elements) > 1) and elements[1] == "$GPGGA"):
-        #    print ("Data: " + elements[2])
-        #    #print (elements)
-        #    #for item in elements:
-        #    #    print (str(item))
-        #elif (elements[0] != ""):
-        #    print ("Command: " + str(elements[0][2:4]))
-        #    command_in = int(elements[0][3:4])
-        #    #print (str(elements[0][2:4]))
-        #else:
-        #    print ("Nothing")    
-        #for item in elements:
-        #    print (str(item))
+        if serialPort.is_open:
+            serialPort.write(b'A')
+
+            print(serialPort.read(94))
+            bytesread = serialPort.readline()
+            print(bytesread)
+            elements = bytesread.decode().split(",")
+            if ((len(elements) > 1) and elements[1] == "$GPGGA"):
+                print ("Data: " + elements[2])
+                print (elements)
+                for item in elements:
+                    print (str(item))
+            elif (elements[0] != ""):
+                print ("Command: " + str(elements[0][2:4]))
+                command_in = int(elements[0][3:4])
+                print (str(elements[0][2:4]))
+            else:
+                print ("Nothing")    
+            for item in elements:
+                print (str(item))
+
         if stop_input_thread:
-        #    serialPort.close()
+           if serialPort.is_open:
+                serialPort.close()
            break
         sleep(1.0)
     
 def output_worker_thread():
     while True:
-        print("Output\n")
+        #print("Output\n")
         global stop_output_thread
         global sensorQueue
         global haspDatabase
 
+        if serialPort.is_open:
+            serialPort.write(b'B')
+
         #serialPort.write(ba)
         #if (serialPort.is_open):
         #    serialPort.write(randint())
+
         if stop_output_thread:
+            if serialPort.is_open:
+                serialPort.close()
             break
-        sleep(1.0)
+        #sleep(1.0)
     
 def processing_worker_thread():
     while True:
-        print("Processing\n")
+        #print("Processing\n")
         global command_in
         global stop_processing_thread
-        #serialPort.write(b'C')
 
-        # Dequeue sensor data
-        sData = sensorQueue.get()
-        print(sData)
+        if serialPort.is_open:
+            serialPort.write(b'C')
 
-        # Add the data in the database
-        with sqlite3.connect("C:\\HASP\\HASP2026\\HASP2026\\HASP2026.sqlite3") as haspDatabase:
-            cursor = haspDatabase.cursor()
-            sqlStatement = "INSERT INTO TestTable (Data) VALUES (?)"
-            cursor.execute(sqlStatement, (sData,))
+        # Dequeue sensor data and add them to the database
+        #with sqlite3.connect("C:\\HASP\\HASP2026\\HASP2026\\HASP2026.sqlite3") as haspDatabase:
+        with sqlite3.connect("/home/pi5/HASP2026/HASP2026.sqlite3") as haspDatabase:
+            while not sensorQueue.empty():
+                sData = sensorQueue.get()
+                print(sData)
+
+                # Add the data in the database
+                #with sqlite3.connect("/home/pi5/HASP2026/HASP2026.sqlite3") as haspDatabase:
+                cursor = haspDatabase.cursor()
+                sqlStatement = "INSERT INTO TestTable (Data) VALUES (?)"
+                cursor.execute(sqlStatement, (sData,))
 
         if stop_processing_thread:
+            if serialPort.is_open:
+                serialPort.close()
             break
-        sleep(1.0)
+        #sleep(1.0)
 
 # Initialize the startup conditions
 print("Initializing")
+
+# Initialize the serial port
 #serialPort = serial.Serial(port="COM1", baudrate=9600, bytesize=8, timeout=5, stopbits=serial.STOPBITS_ONE, parity='N')
-#serialPort = serial.Serial(port='/dev/ttyUSB0', baudrate=9600, bytesize=8, timeout=5, stopbits=serial.STOPBITS_ONE, parity='N')
+serialPort = serial.Serial(port='/dev/ttyUSB0', baudrate=9600, bytesize=8, timeout=5, stopbits=serial.STOPBITS_ONE, parity='N')
+serialPort.close()
+
 modeControl = ModeControl()
 command_in = 0
 sensorQueue = queue.Queue(maxsize=10)
+
+# Setup the database
 #haspDatabase = sqlite3.connect("C:\\HASP\\HASP2026\\HASP2026\\HASP2026.sqlite3")
+with sqlite3.connect("/home/pi5/HASP2026/HASP2026.sqlite3") as haspDatabase:
+    cursor = haspDatabase.cursor()
+    sqlStatement = "DROP TABLE IF EXISTS TestTable"
+    cursor.execute(sqlStatement)
+    sqlStatement = "CREATE TABLE IF NOT EXISTS TestTable (ID INTEGER PRIMARY KEY NOT NULL, Data TEXT(48))"
+    cursor.execute(sqlStatement)
+
+# Setup the I2C communication with prepherals
+i2cbus = SMBus(1)
+i2caddress_1 = 0x2A
+i2caddress_2 = 0x2B
+i2caddress_3 = 0x2C
 
 # Setup the worker threads
 input_thread = threading.Thread(target=input_worker_thread, args=())
@@ -116,8 +150,16 @@ output_thread.start()
 while True:
     modeControl.SystemMCL()
     
+    #key = getch()   # This is a blocking call
+    #print(key)
+    #user_input = input()
+    #print(user_input)
+
     inputchar = sys.stdin.read(1)
-    if (inputchar == "q"):
+    if inputchar == "q":
+        sleep(1)
+        if serialPort.is_open:
+            serialPort.close()
         stop_input_thread = True
         stop_output_thread = True
         stop_processing_thread = True
