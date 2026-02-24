@@ -24,8 +24,8 @@ volatile uint8_t registerValue = 1; // modified in onReceive event
 struct __attribute__((packed)) sensorData {
   // Size of struct is 8 bytes (without) padding
   int16_t temperature; // 2 bytes
-  int16_t humidity;   // 4 bytes
-  int32_t pressure;   // 2 bytes
+  int16_t humidity;   // 2 bytes
+  int32_t pressure;   // 4 bytes
   //int16_t altitude;   // 2 bytes
   //uint32_t myTime;    // 4 bytes. Not unsigned long.
 
