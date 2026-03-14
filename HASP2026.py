@@ -5,9 +5,6 @@ import sqlite3 as sql
 import time
 
 
- # https://www.digikey.com/en/maker/projects/circuitpython-basics-i2c-and-spi/9799e0554de14af3850975dfb0174ae3 GOOD TUTORIAL 
- #data_to_send = bytes([0x01, 0xFF])  # Data must be sent as a byte-like object (bytes or bytearray) list
-
 # Initialize I2C (using default SCL and SDA pins)
 i2c = busio.I2C(board.SCL, board.SDA)
 
