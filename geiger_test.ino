@@ -36,6 +36,10 @@ ArduinoQueue<unsigned long> timeQueue2(100);
 
 void setup() {
 
+  // Testing whether queue full:
+  //unsigned int n = countQueue1.itemCount();    // Returns the number of items currently on the queue
+  //unsigned int n = timeQueue1.itemSize();    // Returns the size of the item being stored (bytes)
+
   Serial.begin(115200);
   pinMode(LED_BUILTIN, OUTPUT);
 
@@ -126,42 +130,47 @@ void I2CRequest() {
 
   if (registerNumber == 2) {
 
-    // Clear Counts
-    //geigerCount = 0;  
-
-    if (!countQueue1.isEmpty()) {
-      int count = countQueue1.dequeue();
-      Wire1.write((uint8_t*)(&count),4);          ///4 bytes per int
-    }
-    else {
-      Serial.println("Count Queue full");
-      Wire1.write((uint8_t*)(&count),4);         // Note: This line was added to stop crashing when master does not get an ACK byte from slave. 
-    }
-  }
-  
-    
-    if (registerNumber == 3) {
-      
-      if (!timeQueue1.isEmpty()) {
-        unsigned long time = timeQueue1.dequeue();  
-        Wire1.write((uint8_t*)(&time),4);           // 4 byte per unsigned
-      }
-      else {
-        Serial.println("Time Queue full");
-      }
-    }
-      // Turn off 
-    
-      // Checking Item Anount in Queues if working (TEST)
+    // Pi asks for how many itemsin the queue: 
+    // Checking Item Amount in Queues   (TEST)
       unsigned long timeCountNum = timeQueue1.item_count();
       unsigned int queueCountNum = countQueue1.itemCount();
       Serial.println("Count Queue Items:");
       Serial.println(queueCountNum);
       Serial.println("Count Time Items:");
-      Serial.println(timeCountNum);
+      Serial.println(queueCountNum);
+
+    // State the amount of counts to Pi
+      Wire1.write((uint8_t*)(&queueCountNum),4);
+  }
+
+    
+  else if (registerNumber == 3) {
+      
+    // Send all counts to pi
+
+    if (!countQueue1.isEmpty()) {
+        int count = countQueue1.dequeue();
+        Wire1.write((uint8_t*)(&count),4);   ///4 bytes per int
+               
+      }
+    else {
+      Serial.println("Count Queue full");
+      uint32_t zero = 0;
+      Wire1.write((uint8_t*)(&zero), 4);         // Note: This line was added to stop crashing when master does not get an ACK byte from slave. 
+      }
+    }
+    
+      /* Checking Item Anount in Queues if working (TEST)
+      unsigned long timeCountNum = timeQueue1.item_count();
+      unsigned int queueCountNum = countQueue1.itemCount();
+      Serial.println("Count Queue Items:");
+      Serial.println(queueCountNum);
+      Serial.println("Count Time Items:");
+      Serial.println(timeCountNum);*/
 
      // Enable interrupts
     
+
 }
 
 void onReceive(int numBytes) {
